@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aviator — Provably Fair Crash Game</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-icon">✈</span>
+        <span class="logo-text">AVIATOR</span>
+      </div>
+      <div class="connection-status" id="connectionStatus" title="WebSocket status">
+        <span class="status-dot"></span>
+        <span class="status-label">CONNECTED</span>
+      </div>
+    </div>
+
+    <!-- Multiplier Round History Bar -->
+    <div class="history-bar-container">
+      <div class="history-pills" id="historyPills">
+        <!-- Dynamically populated round pills -->
+      </div>
+      <button class="history-expand-btn" id="openHistoryModalBtn" title="Round History & Provably Fair">⏱</button>
+    </div>
+
+    <div class="header-right">
+      <button class="btn-icon" id="openVerifyModalBtn" title="Provably Fair Verifier">
+        🛡️ <span class="hide-mobile">Fairness</span>
+      </button>
+
+      <div class="user-section" id="userSection">
+        <!-- Rendered dynamically (Balance, Login/Logout, Admin button) -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Stage -->
+  <main class="game-container">
+    <!-- Left Sidebar: Social Bets Feed -->
+    <aside class="sidebar-bets">
+      <div class="bets-tabs">
+        <button class="tab-btn active" data-tab="all">All Bets (<span id="totalBetsCount">0</span>)</button>
+        <button class="tab-btn" data-tab="my">My Bets</button>
+        <button class="tab-btn" data-tab="top">Top Wins</button>
+      </div>
+      <div class="bets-table-header">
+        <span>User</span>
+        <span>Bet (USD)</span>
+        <span>X</span>
+        <span>Cash out</span>
+      </div>
+      <div class="bets-table-body" id="betsTableBody">
+        <!-- Live bet rows inserted here -->
+      </div>
+    </aside>
+
+    <!-- Center Stage: Canvas Flight Display & Dual Bet Panels -->
+    <section class="stage-center">
+      <div class="canvas-wrapper">
+        <canvas id="flightCanvas"></canvas>
+
+        <!-- Multiplier & Game State Overlay -->
+        <div class="stage-overlay" id="stageOverlay">
+          <div class="multiplier-display" id="multiplierDisplay">1.00x</div>
+          <div class="stage-status-sub" id="stageStatusSub">WAITING FOR NEXT ROUND</div>
+          <div class="progress-bar-container" id="waitingProgressBar">
+            <div class="progress-bar-fill" id="waitingProgressFill"></div>
+          </div>
+        </div>
+
+        <div class="provably-fair-badge" id="provablyFairBadge" title="Server seed hash for this round">
+          🔒 SHA256: <span id="currentRoundHash">loading...</span>
+        </div>
+      </div>
+
+      <!-- Dual Bet Controllers Dock -->
+      <div class="bet-controllers">
+        <!-- Panel Slot 0 -->
+        <div class="bet-panel" id="panel-0">
+          <div class="panel-mode-toggle">
+            <button class="mode-btn active" data-mode="manual">Bet</button>
+            <button class="mode-btn" data-mode="auto">Auto</button>
+          </div>
+          <div class="panel-controls-row">
+            <div class="amount-control-group">
+              <label>Bet Amount</label>
+              <div class="input-with-steppers">
+                <button class="step-btn" data-action="minus">-</button>
+                <input type="number" class="bet-amount-input" value="10.00" min="1" max="10000" step="1">
+                <button class="step-btn" data-action="plus">+</button>
+              </div>
+              <div class="quick-chips">
+                <button class="chip-btn" data-val="10">10</button>
+                <button class="chip-btn" data-val="50">50</button>
+                <button class="chip-btn" data-val="100">100</button>
+                <button class="chip-btn" data-val="500">500</button>
+              </div>
+            </div>
+
+            <div class="action-btn-group">
+              <button class="game-action-btn btn-place-bet" data-slot="0">
+                <span class="btn-main-text">BET</span>
+                <span class="btn-sub-text">10.00 USD</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="auto-cashout-row">
+            <label class="toggle-container">
+              <input type="checkbox" class="auto-cashout-checkbox">
+              <span class="toggle-slider"></span>
+              Auto Cash Out
+            </label>
+            <div class="auto-cashout-input-wrapper">
+              <input type="number" class="auto-cashout-val" value="2.00" min="1.01" step="0.1" disabled>
+              <span class="multiplier-suffix">X</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel Slot 1 -->
+        <div class="bet-panel" id="panel-1">
+          <div class="panel-mode-toggle">
+            <button class="mode-btn active" data-mode="manual">Bet</button>
+            <button class="mode-btn" data-mode="auto">Auto</button>
+          </div>
+          <div class="panel-controls-row">
+            <div class="amount-control-group">
+              <label>Bet Amount</label>
+              <div class="input-with-steppers">
+                <button class="step-btn" data-action="minus">-</button>
+                <input type="number" class="bet-amount-input" value="20.00" min="1" max="10000" step="1">
+                <button class="step-btn" data-action="plus">+</button>
+              </div>
+              <div class="quick-chips">
+                <button class="chip-btn" data-val="20">20</button>
+                <button class="chip-btn" data-val="100">100</button>
+                <button class="chip-btn" data-val="200">200</button>
+                <button class="chip-btn" data-val="1000">1000</button>
+              </div>
+            </div>
+
+            <div class="action-btn-group">
+              <button class="game-action-btn btn-place-bet" data-slot="1">
+                <span class="btn-main-text">BET</span>
+                <span class="btn-sub-text">20.00 USD</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="auto-cashout-row">
+            <label class="toggle-container">
+              <input type="checkbox" class="auto-cashout-checkbox">
+              <span class="toggle-slider"></span>
+              Auto Cash Out
+            </label>
+            <div class="auto-cashout-input-wrapper">
+              <input type="number" class="auto-cashout-val" value="1.50" min="1.01" step="0.1" disabled>
+              <span class="multiplier-suffix">X</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- Auth Modal (Login / Register - Passwords and Usernames hidden) -->
+  <div class="modal-backdrop" id="authModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="authModalTitle">Sign In</h2>
+        <button class="modal-close" data-close="authModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="auth-tabs">
+          <button class="auth-tab-btn active" id="tabLogin">Login</button>
+          <button class="auth-tab-btn" id="tabRegister">Create Account</button>
+        </div>
+        <form id="authForm" autocomplete="off">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="authUsername" placeholder="Enter your username" required minlength="3">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="authPassword" placeholder="••••••••" required minlength="6">
+          </div>
+          <div class="form-error" id="authError"></div>
+          <button type="submit" class="btn-primary btn-block" id="authSubmitBtn">Sign In</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deposit Modal: Online / UPI Payment Gateway -->
+  <div class="modal-backdrop" id="depositModal">
+    <div class="modal-dialog modal-md">
+      <div class="modal-header">
+        <h2>💳 Deposit Funds (UPI / Online Banking)</h2>
+        <button class="modal-close" data-close="depositModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="deposit-tabs">
+          <button class="deposit-tab-btn active" data-dtab="razorpayTab">⚡ Razorpay (Instant Credit)</button>
+          <button class="deposit-tab-btn" data-dtab="payTab">📱 UPI / QR Pay</button>
+          <button class="deposit-tab-btn" data-dtab="depositHistoryTab">📋 Deposit History</button>
+        </div>
+
+        <!-- Tab 0: Razorpay Payment Gateway (Instant Deposit) -->
+        <div class="deposit-tab-content active" id="razorpayTab">
+          <div class="razorpay-card">
+            <div class="razorpay-badge-row" style="display: flex; gap: 8px; margin-bottom: 10px;">
+              <span class="rzp-pill" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">⚡ Instant Wallet Credit</span>
+              <span class="rzp-pill" id="rzpModeIndicator" style="background: rgba(52, 152, 219, 0.2); color: #3498db; border: 1px solid rgba(52,152,219,0.3); padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">🛡️ Razorpay Test Sandbox</span>
+            </div>
+            <h3 style="margin: 6px 0;">Deposit via Razorpay Gateway</h3>
+            <p class="card-desc" style="color: #aaa; font-size: 0.85rem; margin-bottom: 15px;">
+              Pay securely using UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, or NetBanking. Once payment is confirmed, your Aviator wallet balance is credited immediately.
+            </p>
+
+            <div class="form-group">
+              <label>Deposit Amount (₹ / USD)</label>
+              <div class="deposit-chips">
+                <button type="button" class="chip-deposit-rzp" data-amount="100">100</button>
+                <button type="button" class="chip-deposit-rzp active" data-amount="500">500</button>
+                <button type="button" class="chip-deposit-rzp" data-amount="1000">1,000</button>
+                <button type="button" class="chip-deposit-rzp" data-amount="5000">5,000</button>
+              </div>
+              <input type="number" id="rzpDepositAmountInput" value="500" min="10" max="100000" style="margin-top: 8px;">
+            </div>
+
+            <div class="form-error" id="rzpDepositError" style="display:none; margin: 10px 0;"></div>
+            <div class="form-success" id="rzpDepositSuccess" style="display:none; margin: 10px 0;"></div>
+
+            <button type="button" class="btn-primary btn-block" id="btnLaunchRazorpay" style="margin-top: 15px; font-weight: 700; font-size: 1.05rem;">
+              ⚡ Proceed to Pay with Razorpay
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab 1: Pay via UPI -->
+        <div class="deposit-tab-content" id="payTab">
+          <div class="upi-payment-card">
+            <div class="upi-qr-wrapper">
+              <img id="upiQrCodeImg" alt="UPI QR Code" src="">
+              <span class="qr-helper-text">Scan with any UPI App (GPay, PhonePe, Paytm, BHIM)</span>
+            </div>
+
+            <div class="upi-details-list">
+              <div class="upi-detail-item">
+                <span class="upi-label">UPI ID (VPA):</span>
+                <div class="copy-box">
+                  <span id="displayUpiId" class="copy-val">loading...</span>
+                  <button type="button" class="btn-copy" id="copyUpiBtn" title="Copy UPI ID">📋 Copy</button>
+                </div>
+              </div>
+              <div class="upi-detail-item">
+                <span class="upi-label">Payee Name:</span>
+                <span id="displayAccountName" class="detail-val">Aviator Operator</span>
+              </div>
+              <div class="upi-detail-item">
+                <span class="upi-label">Bank & IFSC:</span>
+                <span id="displayBankDetails" class="detail-val">-</span>
+              </div>
+              <div class="upi-detail-item">
+                <span class="upi-label">Account No:</span>
+                <span id="displayAccountNumber" class="detail-val" style="font-family: monospace;">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Deposit Verification Form -->
+          <form id="depositPaymentForm" class="deposit-form">
+            <div class="form-group">
+              <label>Deposit Amount (₹ / USD)</label>
+              <div class="deposit-chips">
+                <button type="button" class="chip-deposit" data-amount="100">100</button>
+                <button type="button" class="chip-deposit active" data-amount="500">500</button>
+                <button type="button" class="chip-deposit" data-amount="1000">1,000</button>
+                <button type="button" class="chip-deposit" data-amount="5000">5,000</button>
+              </div>
+              <input type="number" id="depositAmountInput" value="500" min="10" max="100000" style="margin-top: 8px;">
+            </div>
+
+            <div class="form-group">
+              <label>12-Digit Transaction Reference / UTR Number <span class="required" style="color: #e51b24;">*</span></label>
+              <input type="text" id="depositUtrInput" placeholder="e.g. 429381748291" required minlength="6">
+              <small class="input-helper">Found in your payment receipt as 'UPI Ref ID', 'UTR', or 'Transaction ID'.</small>
+            </div>
+
+            <div class="form-group">
+              <label>Sender UPI ID / Your Name (Optional)</label>
+              <input type="text" id="depositSenderName" placeholder="e.g. Rahul / rahul@okaxis">
+            </div>
+
+            <div class="form-error" id="depositError"></div>
+            <div class="form-success" id="depositSuccess"></div>
+
+            <button type="submit" class="btn-primary btn-block" id="submitDepositBtn">
+              Submit Payment for Verification
+            </button>
+          </form>
+        </div>
+
+        <!-- Tab 2: Deposit History -->
+        <div class="deposit-tab-content" id="depositHistoryTab">
+          <div class="admin-table-responsive" style="max-height: 300px;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>UTR</th>
+                  <th>Status</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody id="myDepositsTableBody">
+                <!-- User deposits rendered here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Withdrawal Modal: User Cashout to Bank / UPI -->
+  <div class="modal-backdrop" id="withdrawModal">
+    <div class="modal-dialog modal-md">
+      <div class="modal-header">
+        <h2>💸 Withdraw Funds to Bank / UPI</h2>
+        <button class="modal-close" data-close="withdrawModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="deposit-tabs">
+          <button class="deposit-tab-btn active" data-wtab="requestWithdrawTab">1. Request Withdrawal</button>
+          <button class="deposit-tab-btn" data-wtab="withdrawHistoryTab">2. My Withdrawals</button>
+        </div>
+
+        <!-- Tab 1: Request Withdrawal -->
+        <div class="withdraw-tab-content active" id="requestWithdrawTab">
+          <div style="background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #aaa; font-size: 0.9rem;">Available Balance:</span>
+            <span id="withdrawAvailableBal" style="font-weight: 700; color: #4cd964; font-size: 1.2rem;">$0.00</span>
+          </div>
+
+          <form id="withdrawForm">
+            <div class="form-group">
+              <label>Withdrawal Amount ($ / ₹)</label>
+              <input type="number" id="withdrawAmountInput" placeholder="Min. 10" min="10" step="1" required>
+            </div>
+
+            <div class="form-group">
+              <label>Payout Destination Method</label>
+              <div style="display: flex; gap: 15px; margin: 8px 0;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #fff;">
+                  <input type="radio" name="payoutMethod" value="upi" checked id="radioPayoutUpi"> 📱 UPI (Instant VPA)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #fff;">
+                  <input type="radio" name="payoutMethod" value="bank" id="radioPayoutBank"> 🏦 Bank Account (IMPS / NEFT)
+                </label>
+              </div>
+            </div>
+
+            <!-- UPI Fields -->
+            <div id="withdrawUpiFields">
+              <div class="form-group">
+                <label>Your UPI ID (VPA) <span class="required" style="color: #e51b24;">*</span></label>
+                <input type="text" id="withdrawUpiId" placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm">
+              </div>
+            </div>
+
+            <!-- Bank Fields -->
+            <div id="withdrawBankFields" style="display: none;">
+              <div class="form-group">
+                <label>Account Holder Name <span class="required" style="color: #e51b24;">*</span></label>
+                <input type="text" id="withdrawAccountName" placeholder="Your Full Name as registered in bank">
+              </div>
+              <div class="form-group">
+                <label>Bank Name</label>
+                <input type="text" id="withdrawBankName" placeholder="e.g. HDFC Bank, SBI, ICICI">
+              </div>
+              <div class="form-group">
+                <label>Account Number <span class="required" style="color: #e51b24;">*</span></label>
+                <input type="text" id="withdrawAccountNumber" placeholder="Bank Account Number">
+              </div>
+              <div class="form-group">
+                <label>IFSC Code <span class="required" style="color: #e51b24;">*</span></label>
+                <input type="text" id="withdrawIfscCode" placeholder="e.g. HDFC0001234">
+              </div>
+            </div>
+
+            <div class="form-error" id="withdrawError" style="display: none; margin: 10px 0;"></div>
+            <div class="form-success" id="withdrawSuccess" style="display: none; margin: 10px 0;"></div>
+
+            <button type="submit" class="btn-primary btn-block" id="btnSubmitWithdraw" style="margin-top: 15px; font-weight: 700;">
+              💸 Submit Withdrawal Request
+            </button>
+          </form>
+        </div>
+
+        <!-- Tab 2: Withdrawal History -->
+        <div class="withdraw-tab-content" id="withdrawHistoryTab" style="display: none;">
+          <div class="admin-table-responsive" style="max-height: 300px;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Destination</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="myWithdrawalsTableBody">
+                <!-- User withdrawals rendered here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Provably Fair Verifier Modal -->
+  <div class="modal-backdrop" id="verifyModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h2>🛡️ Provably Fair Cryptographic Verifier</h2>
+        <button class="modal-close" data-close="verifyModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Aviator rounds are 100% fair and mathematically verifiable. The crash point is determined before the flight begins using SHA-512 combining the Server Seed and Client Seed.
+        </p>
+        <div class="verifier-form">
+          <div class="form-group">
+            <label>Server Seed (Hexadecimal)</label>
+            <input type="text" id="verifyServerSeed" placeholder="32-char hex string from completed round">
+          </div>
+          <div class="form-group">
+            <label>Client Seed</label>
+            <input type="text" id="verifyClientSeed" placeholder="Client seed contributed to round">
+          </div>
+          <div class="form-group">
+            <label>Public Server Seed SHA-256 Hash</label>
+            <input type="text" id="verifyExpectedHash" placeholder="Pre-round public hash">
+          </div>
+          <div class="form-group">
+            <label>Observed Crash Multiplier (e.g. 2.45)</label>
+            <input type="number" step="0.01" id="verifyExpectedMultiplier" placeholder="2.45">
+          </div>
+          <button class="btn-primary" id="runVerificationBtn">Verify Cryptographic Math</button>
+        </div>
+        <div class="verification-result" id="verificationResult" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ADMIN PANEL MODAL (REQUIREMENTS 1 & 2 + FLIGHT CONTROL + BANKING) ==================== -->
+  <div class="modal-backdrop modal-fullscreen" id="adminModal">
+    <div class="modal-dialog admin-dialog">
+      <div class="modal-header admin-header">
+        <div class="admin-title-row">
+          <span class="admin-badge">ADMINISTRATION CONSOLE</span>
+          <h2>Aviator Platform Operations</h2>
+        </div>
+        <button class="modal-close" data-close="adminModal">&times;</button>
+      </div>
+
+      <div class="admin-body">
+        <!-- Live Flight Controller & Crash Manager -->
+        <div class="admin-flight-controller-box">
+          <div class="flight-controller-header">
+            <h3>🎮 Live Flight Controller & Crash Manager</h3>
+            <span class="controller-status-pill" id="adminGameStatusPill">State: WAITING</span>
+          </div>
+          <div class="flight-controller-grid">
+            <!-- Action 1: Force Crash Now -->
+            <div class="controller-card crash-card">
+              <h4>🚨 Emergency Crash Control</h4>
+              <p>Immediately force the plane to fly away (crash) right now in real time!</p>
+              <button class="btn-force-crash" id="btnForceCrashNow">
+                💥 FLEW AWAY NOW (Crash Plane)
+              </button>
+            </div>
+
+            <!-- Action 2: Rig / Preset Next Multiplier -->
+            <div class="controller-card">
+              <h4>🎯 Set Next Crash Multiplier</h4>
+              <p>Preset the exact crash multiplier for the upcoming flight round.</p>
+              <div class="input-inline-btn">
+                <input type="number" id="adminNextMultiplierInput" placeholder="e.g. 1.20, 2.50, 15.00" step="0.01" min="1.00">
+                <button class="btn-secondary" id="btnSetNextMultiplier">Set Multiplier</button>
+              </div>
+              <small class="helper-text" id="nextMultiplierStatusText">Next round: Auto-calculated</small>
+            </div>
+
+            <!-- Action 3: Adjust Flight Duration & Countdown -->
+            <div class="controller-card">
+              <h4>⏱️ Fly Time & Speed Config</h4>
+              <p>Adjust waiting countdown time and flight curve speed.</p>
+              <div class="flight-config-row">
+                <div>
+                  <label>Betting Time (sec)</label>
+                  <input type="number" id="adminCountdownSecInput" value="5" min="2" max="30">
+                </div>
+                <div>
+                  <label>Curve Rate</label>
+                  <input type="number" id="adminSpeedFactorInput" value="0.08" min="0.02" max="0.3" step="0.01">
+                </div>
+                <button class="btn-secondary" id="btnSaveFlightConfig" style="align-self: flex-end;">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Metrics Grid -->
+        <div class="admin-kpi-grid" id="adminKpis">
+          <div class="kpi-card">
+            <span class="kpi-label">Total Users</span>
+            <span class="kpi-value" id="kpiTotalUsers">-</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Active Users</span>
+            <span class="kpi-value" id="kpiActiveUsers">-</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Admins</span>
+            <span class="kpi-value" id="kpiTotalAdmins">-</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">House Profit (USD)</span>
+            <span class="kpi-value profit" id="kpiHouseProfit">$0.00</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Total Wagered</span>
+            <span class="kpi-value" id="kpiTotalWagered">$0.00</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Total Rounds</span>
+            <span class="kpi-value" id="kpiTotalRounds">-</span>
+          </div>
+        </div>
+
+        <!-- Admin Tabs -->
+        <div class="admin-tabs">
+          <button class="admin-tab-btn active" data-tab="usersTab">
+            👥 User Management (Full Access)
+          </button>
+          <button class="admin-tab-btn" data-tab="depositsTab">
+            💳 Deposit Requests & Banking
+          </button>
+          <button class="admin-tab-btn" data-tab="adminsTab">
+            🛡️ Add / Manage Admins
+          </button>
+          <button class="admin-tab-btn" data-tab="roundsTab">
+            🎲 Provably Fair Rounds Audit
+          </button>
+          <button class="admin-tab-btn" data-tab="logsTab">
+            📜 Action Logs
+          </button>
+        </div>
+
+        <!-- Tab 1: User Management (Requirement 1) -->
+        <div class="admin-tab-content active" id="usersTab">
+          <div class="admin-table-toolbar">
+            <input type="text" id="adminUserSearchInput" class="search-input" placeholder="🔍 Search by username...">
+            <button class="btn-secondary" id="refreshUsersBtn">Refresh Users</button>
+          </div>
+
+          <div class="admin-table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Username</th>
+                  <th>Role</th>
+                  <th>Balance</th>
+                  <th>Bets Placed</th>
+                  <th>Total Wagered</th>
+                  <th>Total Won</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminUsersTableBody">
+                <!-- User rows rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Deposits & Banking Management -->
+        <div class="admin-tab-content" id="depositsTab">
+          <div class="admin-two-col">
+            <!-- Pending Deposits Queue -->
+            <div class="admin-card" style="grid-column: span 2;">
+              <div class="toolbar-inline">
+                <h3>Incoming Deposit Verification Queue</h3>
+                <button class="btn-secondary" id="refreshDepositsBtn">Refresh Deposits</button>
+              </div>
+              <p class="card-desc">Review payments sent by users to your UPI/Bank. Verify the 12-digit UTR in your bank app, then approve to credit user balance.</p>
+              <div class="admin-table-responsive" style="max-height: 280px;">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>User</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                      <th>12-digit UTR Reference</th>
+                      <th>Sender</th>
+                      <th>Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminDepositsTableBody">
+                    <!-- Deposit rows rendered here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Outgoing User Withdrawal Requests Queue -->
+            <div class="admin-card" style="grid-column: span 2; margin-top: 10px;">
+              <div class="toolbar-inline">
+                <h3>💸 Outgoing User Withdrawal Requests</h3>
+                <button class="btn-secondary" id="refreshWithdrawalsBtn">Refresh Withdrawals</button>
+              </div>
+              <p class="card-desc">Review cashout requests submitted by users. Transfer funds to the requested UPI / Bank destination and click Approve, or click Reject to automatically refund the balance back to the user's wallet.</p>
+              <div class="admin-table-responsive" style="max-height: 280px;">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>User</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                      <th>Destination Account / UPI</th>
+                      <th>Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminWithdrawalsTableBody">
+                    <!-- Withdrawal rows rendered here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Admin Bank & UPI Settings (Where user payments go) -->
+            <div class="admin-card" style="grid-column: span 2;">
+              <h3>🏦 Your Receiving Bank & UPI Details (Where Money Goes)</h3>
+              <p class="card-desc">All user payments made in the deposit screen will be sent directly to the UPI ID and Bank Account configured below.</p>
+              <form id="adminPaymentSettingsForm">
+                <div class="settings-form-grid">
+                  <div class="form-group">
+                    <label>Your UPI ID (VPA) <span class="required" style="color: #e51b24;">*</span></label>
+                    <input type="text" id="settingUpiId" placeholder="e.g. name@example.test" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Account Holder / Payee Name <span class="required" style="color: #e51b24;">*</span></label>
+                    <input type="text" id="settingAccountName" placeholder="e.g. Your Full Legal Name" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Bank Name</label>
+                    <input type="text" id="settingBankName" placeholder="e.g. State Bank of India / HDFC Bank">
+                  </div>
+                  <div class="form-group">
+                    <label>Bank Account Number</label>
+                    <input type="text" id="settingAccountNumber" placeholder="Enter account number">
+                  </div>
+                  <div class="form-group">
+                    <label>IFSC Code</label>
+                    <input type="text" id="settingIfscCode" placeholder="e.g. SBIN0001234">
+                  </div>
+                  <div class="form-group">
+                    <label>Payment Instructions for Users</label>
+                    <input type="text" id="settingInstructions" placeholder="Instructions shown on payment page">
+                  </div>
+                  <div class="form-group" style="grid-column: span 2; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                    <h4 style="color: #3498db; margin-bottom: 4px;">⚡ Razorpay Gateway Settings (Developer Test Mode)</h4>
+                    <p style="font-size: 0.8rem; color: #888;">Enter your Razorpay Test Key ID and Secret (e.g. from Razorpay Dashboard > Settings > API Keys, starts with <code>rzp_test_</code>). If left empty, Sandbox Simulation mode is enabled automatically.</p>
+                  </div>
+                  <div class="form-group">
+                    <label>Razorpay Key ID</label>
+                    <input type="text" id="settingRazorpayKeyId" placeholder="e.g. rzp_test_YourKeyID">
+                  </div>
+                  <div class="form-group">
+                    <label>Razorpay Key Secret</label>
+                    <input type="password" id="settingRazorpayKeySecret" placeholder="••••••••••••••••">
+                  </div>
+                </div>
+                <div class="form-success" id="paymentSettingsSuccess"></div>
+                <div class="form-error" id="paymentSettingsError"></div>
+                <button type="submit" class="btn-primary" style="margin-top: 10px;">💾 Save Receiving Account Details</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Add Admins & Role Management (Requirement 2) -->
+        <div class="admin-tab-content" id="adminsTab">
+          <div class="admin-two-col">
+            <!-- Create New Admin Form -->
+            <div class="admin-card">
+              <h3>Create New Administrator</h3>
+              <p class="card-desc">Provision a new administrator account with administrative credentials and full access.</p>
+              <form id="createAdminForm">
+                <div class="form-group">
+                  <label>Admin Username</label>
+                  <input type="text" id="newAdminUsername" placeholder="Enter admin username" required minlength="3">
+                </div>
+                <div class="form-group">
+                  <label>Password</label>
+                  <input type="password" id="newAdminPassword" placeholder="••••••••" required minlength="6">
+                </div>
+                <div class="form-group">
+                  <label>Initial Balance (USD)</label>
+                  <input type="number" id="newAdminBalance" value="10000.00" min="0" step="100">
+                </div>
+                <div class="form-error" id="createAdminError"></div>
+                <div class="form-success" id="createAdminSuccess"></div>
+                <button type="submit" class="btn-primary">Create Administrator</button>
+              </form>
+            </div>
+
+            <!-- Current Admins List -->
+            <div class="admin-card">
+              <h3>Active Administrators</h3>
+              <p class="card-desc">Current administrative users with console privileges.</p>
+              <div class="admin-table-responsive">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Admin</th>
+                      <th>Balance</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="currentAdminsTableBody">
+                    <!-- Admins rendered here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Rounds Audit -->
+        <div class="admin-tab-content" id="roundsTab">
+          <div class="admin-table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Round ID</th>
+                  <th>Crash Point</th>
+                  <th>Server Seed</th>
+                  <th>Client Seed</th>
+                  <th>Status</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="adminRoundsTableBody">
+                <!-- Rounds rendered here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 4: Audit Logs -->
+        <div class="admin-tab-content" id="logsTab">
+          <div class="admin-table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Action</th>
+                  <th>Admin</th>
+                  <th>Target User</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="adminLogsTableBody">
+                <!-- Logs rendered here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Balance Adjustment Submodal -->
+  <div class="modal-backdrop" id="adjustBalanceModal">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-header">
+        <h3>Adjust User Balance</h3>
+        <button class="modal-close" data-close="adjustBalanceModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>User: <strong id="adjustBalanceUsername">-</strong></p>
+        <p>Current Balance: <strong id="adjustBalanceCurrent">$0.00</strong></p>
+        <div class="form-group">
+          <label>Amount (Positive to Add, Negative to Deduct)</label>
+          <input type="number" id="adjustBalanceAmount" placeholder="+100 or -50" step="1">
+        </div>
+        <div class="form-group">
+          <label>Reason / Note</label>
+          <input type="text" id="adjustBalanceReason" placeholder="e.g. VIP Bonus or Correction">
+        </div>
+        <button class="btn-primary btn-block" id="submitAdjustBalanceBtn">Update Balance</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Bets Inspection Submodal -->
+  <div class="modal-backdrop" id="userBetsModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3>User Betting History: <span id="userBetsModalUsername">-</span></h3>
+        <button class="modal-close" data-close="userBetsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="admin-table-responsive">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Bet ID</th>
+                <th>Round</th>
+                <th>Wager</th>
+                <th>Auto Cashout</th>
+                <th>Cashed At</th>
+                <th>Payout</th>
+                <th>Status</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="userBetsModalTableBody">
+              <!-- Bets rendered here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "aviator-crash-game",
+  "version": "1.0.0",
+  "description": "Aviator Crash Game with Real-Time Multiplayer, Provably Fair Math, and Full Admin Panel",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "razorpay": "^2.9.8",
+    "ws": "^8.18.0"
+  }
+}
